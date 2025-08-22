@@ -152,6 +152,7 @@ class Orchestrator:
     def run_workflow(self, payload: Dict[str, Any]) -> str:
         """Execute the full compliance workflow as a Celery chain."""
 
+        workflow_id = str(uuid.uuid4())
         steps = [
             self.celery_app.signature(
                 f"agents.tasks.{TaskType.COLLECT_ADDRESS.value}", args=[payload]
@@ -168,9 +169,11 @@ class Orchestrator:
             self.celery_app.signature(
                 f"agents.tasks.{TaskType.ANCHOR_LOG.value}"
             ),
+            self.celery_app.signature(
+                "agents.tasks.mark_workflow_done", kwargs={"workflow_id": workflow_id}
+            ),
         ]
-        result = chain(*steps).apply_async()
-        self.state_store.set(
-            result.id, {"status": "queued", "task_type": "workflow"}
-        )
-        return result.id
+        chain(*steps).apply_async()
+        # initial state stored immediately so the workflow ID can be polled
+        self.state_store.set(workflow_id, {"status": "queued", "task_type": "workflow"})
+        return workflow_id
