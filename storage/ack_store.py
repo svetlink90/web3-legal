@@ -16,17 +16,17 @@ from typing import Any, Dict
 
 try:  # Optional dependency
     import jsonschema  # type: ignore
-except Exception:  # pragma: no cover - optional
+except ImportError:  # pragma: no cover - optional
     jsonschema = None
 
 try:  # Optional dependency
     import ipfshttpclient  # type: ignore
-except Exception:  # pragma: no cover - optional
+except ImportError:  # pragma: no cover - optional
     ipfshttpclient = None
 
 try:  # Optional dependency
     import boto3  # type: ignore
-except Exception:  # pragma: no cover - optional
+except ImportError:  # pragma: no cover - optional
     boto3 = None
 
 SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schemas" / "acknowledgment.json"

@@ -6,7 +6,7 @@ from celery import Celery
 
 try:
     from storage import store_ack as persist_ack
-except Exception:  # pragma: no cover - storage optional during tests
+except ImportError:  # pragma: no cover - storage optional during tests
     persist_ack = None
 
 BROKER = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
