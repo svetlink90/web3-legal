@@ -4,6 +4,8 @@ from typing import Any, Dict
 
 from celery import Celery
 
+from .analysis import analyze_screening
+
 BROKER = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 app = Celery("agents.tasks", broker=BROKER, backend=BACKEND)
@@ -24,10 +26,8 @@ def sanction_screen(prev: Dict[str, Any]) -> Dict[str, Any]:
 @app.task(name="agents.tasks.analyze_results")
 def analyze_results(prev: Dict[str, Any]) -> Dict[str, Any]:
     scr = prev.get("screening", {})
-    prev["analysis"] = {
-        "decision": "pass" if not scr.get("hit") else "block",
-        "rationale": "No matches in sources" if not scr.get("hit") else "Positive match",
-    }
+    recommendation = analyze_screening(scr)
+    prev["analysis"] = {"decision": recommendation.value}
     return prev
 
 
