@@ -4,6 +4,11 @@ from typing import Any, Dict
 
 from celery import Celery
 
+try:
+    from storage import store_ack as persist_ack
+except Exception:  # pragma: no cover - storage optional during tests
+    persist_ack = None
+
 BROKER = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 app = Celery("agents.tasks", broker=BROKER, backend=BACKEND)
@@ -33,7 +38,13 @@ def analyze_results(prev: Dict[str, Any]) -> Dict[str, Any]:
 
 @app.task(name="agents.tasks.store_ack")
 def store_ack(prev: Dict[str, Any]) -> Dict[str, Any]:
-    prev["stored"] = True
+    """Persist the acknowledgment details and return a reference."""
+
+    if persist_ack is not None:
+        ref = persist_ack(prev)
+        prev["ack_ref"] = ref
+    else:  # pragma: no cover - fallback if storage module missing
+        prev["ack_ref"] = {"backend": "unknown"}
     return prev
 
 
