@@ -2,6 +2,8 @@ import json
 import os
 from typing import Any, Dict
 
+import hashlib
+
 from celery import Celery
 
 from .analysis import analyze_screening
@@ -39,7 +41,14 @@ def store_ack(prev: Dict[str, Any]) -> Dict[str, Any]:
 
 @app.task(name="agents.tasks.anchor_log")
 def anchor_log(prev: Dict[str, Any]) -> Dict[str, Any]:
-    prev["anchor_ref"] = "local-simulated-ref"
+    data = json.dumps(prev, sort_keys=True).encode()
+    data_hash = hashlib.sha3_256(data).hexdigest()
+    prev["anchor_ref"] = data_hash
+    prev["certificate"] = {
+        "address": prev.get("address"),
+        "acknowledged": prev.get("owner_ack", False),
+        "data_hash": data_hash,
+    }
     return prev
 
 
