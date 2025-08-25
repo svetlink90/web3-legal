@@ -7,6 +7,7 @@ import hashlib
 from celery import Celery
 
 from .analysis import analyze_screening
+from legal_ai_agents.client import LegalAIAgentsClient
 
 BROKER = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
@@ -18,10 +19,20 @@ def collect_address(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"address": payload.get("address"), "owner_ack": bool(payload.get("ack"))}
 
 
+# Reuse a single client for all screening requests
+_SCREEN_CLIENT = LegalAIAgentsClient()
+
+
 @app.task(name="agents.tasks.sanction_screen")
 def sanction_screen(prev: Dict[str, Any]) -> Dict[str, Any]:
+    """Call the Legal AI Agents service to screen an address."""
+
     address = prev.get("address")
-    prev["screening"] = {"address": address, "hit": False, "sources": []}
+    try:
+        prev["screening"] = _SCREEN_CLIENT.screen_address(address)
+    except Exception:
+        # Preserve the workflow even if the external service fails
+        prev["screening"] = {"address": address, "error": "screen_failed"}
     return prev
 
 
@@ -35,6 +46,14 @@ def analyze_results(prev: Dict[str, Any]) -> Dict[str, Any]:
 
 @app.task(name="agents.tasks.store_ack")
 def store_ack(prev: Dict[str, Any]) -> Dict[str, Any]:
+    """Persist user acknowledgement to a JSON file for audit."""
+
+    address = prev.get("address")
+    ack_data = {"address": address, "owner_ack": prev.get("owner_ack", False)}
+    os.makedirs("acks", exist_ok=True)
+    path = os.path.join("acks", f"{address}.json")
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(ack_data, handle)
     prev["stored"] = True
     return prev
 
